@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.DS_Store
+.streamlit/secrets.toml
+# local memory and generated reports (may contain personal data)
+memory_store/
+outputs/

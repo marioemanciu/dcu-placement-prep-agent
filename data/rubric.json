@@ -1,0 +1,30 @@
+{
+  "scale": "1-5",
+  "criteria": [
+    {
+      "name": "Relevance",
+      "1": "Does not answer the question",
+      "5": "Directly answers the question"
+    },
+    {
+      "name": "Structure (STAR)",
+      "1": "No clear situation or result",
+      "5": "Clear Situation, Task, Action, Result"
+    },
+    {
+      "name": "Technical accuracy",
+      "1": "Incorrect or vague",
+      "5": "Correct and specific"
+    },
+    {
+      "name": "Evidence",
+      "1": "Generic claims",
+      "5": "Concrete examples with outcomes"
+    },
+    {
+      "name": "Communication",
+      "1": "Unclear",
+      "5": "Clear and concise"
+    }
+  ]
+}
