@@ -184,3 +184,69 @@ class CoordinatorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CoordinatorMemoryIntegrationTests(unittest.TestCase):
+
+    def test_previous_memory_is_passed_to_agents(self):
+        import tempfile
+        from src.memory import MemoryStore
+
+        with tempfile.TemporaryDirectory() as directory:
+            memory = MemoryStore(directory)
+
+            memory.save(
+                "student_memory",
+                weaknesses=["SQL joins"],
+                scores={"technical": 2},
+                progress=[{"session": 1, "technical": 2}],
+                consent=True,
+            )
+
+            received_memory = {}
+
+            def gap_agent(cv_text, job_analysis, previous_memory):
+                received_memory["gap"] = previous_memory
+
+                return GapAnalysisOutput(
+                    strengths=[],
+                    gaps=[
+                        SkillEvidence(
+                            skill="SQL joins",
+                            requirement_jd="SQL joins required",
+                            evidence_cv="None",
+                        )
+                    ],
+                )
+
+            def planning_agent(gaps, job_analysis, previous_memory):
+                received_memory["planning"] = previous_memory
+
+                return PlanningOutput(
+                    priority_gaps=["SQL joins"],
+                    technical_focus=["SQL joins"],
+                    behavioural_focus=[],
+                )
+
+            coordinator = Coordinator(
+                job_analysis_agent=valid_job_analysis,
+                gap_analysis_agent=gap_agent,
+                planning_agent=planning_agent,
+                memory_store=memory,
+            )
+
+            coordinator.run_analysis(
+                "Python experience",
+                "Intern role requiring SQL joins",
+                "student_memory",
+            )
+
+            self.assertEqual(
+                received_memory["gap"]["weaknesses"],
+                ["SQL joins"],
+            )
+
+            self.assertEqual(
+                received_memory["planning"]["scores"]["technical"],
+                2,
+            )
