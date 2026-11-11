@@ -7,12 +7,14 @@ the hard rules, so invented or rejected gaps can never reach the interview.
 import json
 from pathlib import Path
 
+from src.guardrails import is_suspicious
 from src.llm import format_data_context, generate_structured
 from src.schemas import JobAnalysisOutput, PlanningOutput, SkillEvidence
 
 PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "planning.md"
 MAX_PRIORITY = 5
 MAX_FOCUS = 3
+MIN_BEHAVIOURAL = 2  # enough topics for more than one STAR question
 DEFAULT_COMPETENCIES = ["Teamwork", "Communication", "Problem solving"]
 
 # Word stems that mark a skill as behavioural (soft) rather than technical.
@@ -35,16 +37,6 @@ SOFT_SKILL_KEYWORDS = (
     "organiz",
     "project",
 )
-# Words that should never appear in a skill name; they suggest injected instructions.
-SUSPICIOUS_WORDS = {
-    "ignore",
-    "instruction",
-    "instructions",
-    "disregard",
-    "prompt",
-    "system",
-}
-MAX_SKILL_WORDS = 6
 
 
 def run(
@@ -56,10 +48,10 @@ def run(
 
     # 2a. Candidates: the skill name of each confirmed gap
     # F3: drop gap names that look like injected instructions rather than skills
-    candidates = [gap.skill for gap in gaps if not _is_suspicious(gap.skill)]
+    candidates = [gap.skill for gap in gaps if not is_suspicious(gap.skill)]
     if not candidates:
         # No gaps: practise the role's typical topics instead
-        candidates = list(job_analysis.likely_topics)
+        candidates = job_analysis.likely_topics
 
     # 2b. Past weaknesses from long-term memory (memory stores plain strings)
     past_weaknesses = previous_memory.get("weaknesses", []) if previous_memory else []
@@ -88,14 +80,6 @@ def _is_soft(skill: str) -> bool:
     """True if the skill looks like a behavioural competency, e.g. teamwork."""
     name = _normalise(skill)
     return any(keyword in name for keyword in SOFT_SKILL_KEYWORDS)
-
-
-def _is_suspicious(skill: str) -> bool:
-    """True if a 'skill' is too long or contains instruction-like words."""
-    words = _normalise(skill).split()
-    return len(words) > MAX_SKILL_WORDS or any(
-        word in SUSPICIOUS_WORDS for word in words
-    )
 
 
 def _unique(
@@ -162,14 +146,15 @@ def _enforce_rules(
             target.append(gap)
             assigned.add(_normalise(gap))
 
-    # Rule 5: the behavioural round is never empty
-    if not behavioural:
-        defaults = {_normalise(d): d for d in DEFAULT_COMPETENCIES}
-        behavioural = _unique(
-            DEFAULT_COMPETENCIES,
-            defaults,
-            {_normalise(t) for t in technical},
-            MAX_FOCUS,
+    # Rule 5: the behavioural round has at least MIN_BEHAVIOURAL topics.
+    # Top up with soft skills from the job analysis first, then default competencies.
+    if len(behavioural) < MIN_BEHAVIOURAL:
+        used = {_normalise(x) for x in technical + behavioural}
+        soft_job_items = [s for s in job_items if s.strip() and _is_soft(s)]
+        top_up = soft_job_items + DEFAULT_COMPETENCIES
+        top_up_names = {_normalise(s): s for s in top_up}
+        behavioural += _unique(
+            top_up, top_up_names, used, MIN_BEHAVIOURAL - len(behavioural)
         )
 
     return PlanningOutput(
