@@ -80,6 +80,19 @@ class TestPlanningRules(unittest.TestCase):
 
         self.assertNotIn("Leadership", result.behavioural_focus)
 
+    def test_behavioural_round_has_minimum_topics(self):  # review: Maksym
+        result = self.enforce(["SQL"], ["SQL"], ["Communication"], ["SQL"])
+
+        self.assertGreaterEqual(len(result.behavioural_focus), planning.MIN_BEHAVIOURAL)
+        self.assertIn("Communication", result.behavioural_focus)
+
+    def test_behavioural_top_up_prefers_job_soft_skills(self):  # review: Maksym
+        result = self.enforce(["SQL"], ["SQL"], [], ["SQL"])
+
+        # JOB lists Communication and Teamwork, so they come before generic defaults
+        self.assertEqual(result.behavioural_focus, ["Communication", "Teamwork"])
+
+
     # ----- Round 1 refinements -----
     def test_keeps_confirmed_gap_the_llm_left_out(self):  # F1
         plan = PlanningOutput(
@@ -143,6 +156,7 @@ class TestPlanningRun(unittest.TestCase):
         self.assertIn("<past_weaknesses>", user_prompt)
         self.assertIn("Docker", user_prompt)
 
+    
 
 if __name__ == "__main__":
     unittest.main()
