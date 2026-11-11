@@ -124,13 +124,13 @@ def _enforce_rules(
         if not _is_soft(t)
     ]
 
-    # Rule 3: behavioural focus may use priority gaps or skills from the job analysis,
-    # never an item already in the technical list
+    # Rule 3 (F5): behavioural focus may only contain soft skills, taken from the
+    # priority gaps or the job analysis, and never an item already in the technical list
     job_items = job_analysis.required_skills + job_analysis.likely_topics
     behavioural_allowed = {
-        **{_normalise(s): s for s in job_items if s.strip()},
-        **priority_names,
+        _normalise(s): s for s in job_items + priority if s.strip() and _is_soft(s)
     }
+
     technical_keys = {_normalise(t) for t in technical}
     behavioural = _unique(
         plan.behavioural_focus, behavioural_allowed, technical_keys, MAX_FOCUS

@@ -92,8 +92,14 @@ class TestPlanningRules(unittest.TestCase):
         # JOB lists Communication and Teamwork, so they come before generic defaults
         self.assertEqual(result.behavioural_focus, ["Communication", "Teamwork"])
 
+    def test_hard_skill_never_in_behavioural(self):  # F5 (found in UI testing)
+        result = self.enforce(["SQL"], ["SQL"], ["Python", "Communication"], ["SQL"])
+
+        self.assertNotIn("Python", result.behavioural_focus)
+        self.assertIn("Communication", result.behavioural_focus)
 
     # ----- Round 1 refinements -----
+    
     def test_keeps_confirmed_gap_the_llm_left_out(self):  # F1
         plan = PlanningOutput(
             priority_gaps=["SQL"], technical_focus=["SQL"], behavioural_focus=[]
@@ -156,7 +162,6 @@ class TestPlanningRun(unittest.TestCase):
         self.assertIn("<past_weaknesses>", user_prompt)
         self.assertIn("Docker", user_prompt)
 
-    
 
 if __name__ == "__main__":
     unittest.main()
