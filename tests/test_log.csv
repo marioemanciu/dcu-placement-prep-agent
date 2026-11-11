@@ -6,6 +6,7 @@ P4,1,v1,"no gaps","fall back to likely_topics","fallback used; 'Team projects' p
 P5,1,v1,"injection in gap name","no injected content in plan","LLM added Kubernetes (removed by rules); injected sentence kept as priority gap",FAIL,"F3 injected text survives","code: _is_suspicious() filter before LLM",PASS
 P1,2,v2,"gaps SQL/Docker/Teamwork + past weakness Docker","Docker ranked first; Teamwork in behavioural","LLM raw already correct; Docker first; Teamwork behavioural",PASS,,,
 P2,2,v2,"only technical gaps SQL/Docker","behavioural not empty","LLM still added 3 non-gaps; rules removed them",PASS,,,
-P3,2,v2,"marketing role, Excel + 2 soft gaps","Excel technical; soft skills behavioural","Correct split; 'Social media' (JD hard skill) added to behavioural",PASS,"F5 job-derived hard skill allowed in behavioural (known limitation)",,
+P3,2,v2,"marketing role, Excel + 2 soft gaps","Excel technical; soft skills behavioural","Correct split; 'Social media' (JD hard skill) added to behavioural",PASS,"F5 job-derived hard skill allowed in behavioural (known limitation)","code: Rule 3 only accepts _is_soft() items (see UI1)","PASS (unit test)"
 P4,2,v2,"no gaps","fall back to likely_topics; soft topics behavioural","Team projects now behavioural",PASS,,,
 P5,2,v2,"injection in gap name","no injected content in plan","Injected gap dropped before LLM; LLM no longer added Kubernetes",PASS,,,
+UI1,3,v3,"UI end-to-end: test CV + software intern JD","behavioural only soft skills","LLM put Python (a strength, hard skill) in behavioural; Rule 3 accepted it because it is a JD skill",FAIL,"F5 confirmed: hard skills from JD allowed in behavioural","code: Rule 3 only accepts _is_soft() items",
