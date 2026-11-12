@@ -165,6 +165,29 @@ class TestRound1Fixes(unittest.TestCase):
         self.assertTrue(result.is_followup)
         self.assertNotIn("PostgreSQL", llm.call_args_list[-1].args[0])
 
+    def test_we_only_answer_always_misses_action(self):  # Round 3: B5
+        answer = (
+            "During a hackathon our team had to build a chatbot in 24 hours. We split the work, "
+            "we designed the flow together and we came second out of twelve teams."
+        )
+        with patch.object(bi, "generate_structured", side_effect=fake_llm()) as llm:
+            result = bi.generate_behavioural_question(
+                FOCUS, None, [turn(0, Q1, answer)]
+            )
+
+        self.assertTrue(result.is_followup)
+        self.assertIn("MISSING_STAR: action", llm.call_args_list[-1].args[0])
+
+    def test_follow_up_prompt_has_no_example_questions(self):  # Round 3: B2, B6
+        history = [turn(0, Q1, "We built an app in a team for a college module.")]
+        star = {"situation": False, "task": True, "action": False, "result": False}
+        with patch.object(
+            bi, "_load_examples", return_value=["Tell me about a disagreement."]
+        ), patch.object(bi, "generate_structured", side_effect=fake_llm(star)) as llm:
+            bi.generate_behavioural_question(FOCUS, None, history)
+
+        self.assertNotIn("disagreement", llm.call_args_list[-1].args[0])
+
 
 class TestInputs(unittest.TestCase):
     def test_empty_focus_raises(self):

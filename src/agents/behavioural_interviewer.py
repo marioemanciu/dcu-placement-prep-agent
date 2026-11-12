@@ -10,6 +10,7 @@
 
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,9 @@ INJECTION_PHRASES = (
     "you are now",
     "system prompt",
 )
+
+# Words showing the candidate describes their OWN actions, not only the team's (Round 3, B5).
+FIRST_PERSON = {"i", "i'm", "i've", "i'd", "i'll", "my", "me", "myself"}
 
 
 class StarCheck(SchemaModel):
@@ -71,11 +75,18 @@ def _looks_like_injection(answer: str) -> bool:
     return any(phrase in text for phrase in INJECTION_PHRASES)
 
 
+def _uses_first_person(answer: str) -> bool:
+    """True if the answer says anything about what the candidate personally did."""
+    return any(word in FIRST_PERSON for word in re.findall(r"[a-z']+", answer.lower()))
+
+
 def _missing_star_parts(question: str, answer: str) -> list[str]:
     """STAR parts still missing, combining the LLM check with code-level sanity rules."""
     if _looks_like_injection(answer):
         return list(STAR_PARTS)  # not a real answer: ask for a real example
     missing = check_star(question, answer).missing()
+    if "action" not in missing and not _uses_first_person(answer):
+        missing = [part for part in STAR_PARTS if part in missing or part == "action"]
     if not missing and len(answer.split()) < MIN_COMPLETE_WORDS:
         return ["action", "result"]  # too short to be complete: ask for more detail
     return missing
@@ -186,6 +197,8 @@ def generate_behavioural_question(
     # Follow-ups use only the candidate's own words, never job details (Round 2: B2, B6).
     job_text = "{}" if is_followup else _job_context(job_analysis)
 
+    examples = [] if is_followup else _load_examples()
+
     prompt = (
         "Generate the next behavioural interview question. Set round_type to 'behavioural'.\n\n"
         "DIRECTIVE:\n"
@@ -196,7 +209,7 @@ def generate_behavioural_question(
         f"{format_data_context(focus_data, 'behavioural_focus')}\n\n"
         f"{format_data_context(job_text, 'job_context')}\n\n"
         f"{format_data_context(history_data, 'interview_history')}\n\n"
-        f"{format_data_context(json.dumps(_load_examples(), indent=2), 'question_bank')}"
+        f"{format_data_context(json.dumps(examples, indent=2), 'question_bank')}"
     )
 
     previous = {t.question.question_text.strip().casefold() for t in turns}
