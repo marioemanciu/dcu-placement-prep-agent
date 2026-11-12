@@ -182,6 +182,10 @@ def generate_behavioural_question(
         ensure_ascii=False,
         indent=2,
     )
+
+    # Follow-ups use only the candidate's own words, never job details (Round 2: B2, B6).
+    job_text = "{}" if is_followup else _job_context(job_analysis)
+
     prompt = (
         "Generate the next behavioural interview question. Set round_type to 'behavioural'.\n\n"
         "DIRECTIVE:\n"
@@ -190,7 +194,7 @@ def generate_behavioural_question(
         f"MISSING_STAR: {', '.join(missing) if missing else 'none'}\n"
         f"MODE: {mode}\n\n"
         f"{format_data_context(focus_data, 'behavioural_focus')}\n\n"
-        f"{format_data_context(_job_context(job_analysis), 'job_context')}\n\n"
+        f"{format_data_context(job_text, 'job_context')}\n\n"
         f"{format_data_context(history_data, 'interview_history')}\n\n"
         f"{format_data_context(json.dumps(_load_examples(), indent=2), 'question_bank')}"
     )

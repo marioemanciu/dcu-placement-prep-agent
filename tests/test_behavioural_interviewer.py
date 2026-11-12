@@ -151,6 +151,20 @@ class TestRound1Fixes(unittest.TestCase):
         self.assertTrue(result.is_followup)
         self.assertIn("MISSING_STAR: action, result", llm.call_args_list[-1].args[0])
 
+    def test_follow_up_prompt_has_no_job_details(self):  # Round 2: B2, B6
+        job = {
+            "required_skills": ["PostgreSQL"],
+            "experience_level": "intern",
+            "likely_topics": ["SQL"],
+        }
+        history = [turn(0, Q1, "We built an app in a team for a college module.")]
+        star = {"situation": False, "task": True, "action": False, "result": False}
+        with patch.object(bi, "generate_structured", side_effect=fake_llm(star)) as llm:
+            result = bi.generate_behavioural_question(FOCUS, job, history)
+
+        self.assertTrue(result.is_followup)
+        self.assertNotIn("PostgreSQL", llm.call_args_list[-1].args[0])
+
 
 class TestInputs(unittest.TestCase):
     def test_empty_focus_raises(self):
