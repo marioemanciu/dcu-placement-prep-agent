@@ -25,6 +25,21 @@ QUESTION_PROMPT = (PROJECT_ROOT / "prompts" / "behavioural_interviewer.md").read
 STAR_PROMPT = (PROJECT_ROOT / "prompts" / "star_check.md").read_text(encoding="utf-8")
 STAR_PARTS = ("situation", "task", "action", "result")
 
+# a follow-up even if the LLM says it is complete (found in Round 1 testing, B6).
+MIN_COMPLETE_WORDS = 20
+# Phrases that try to instruct the agent instead of answering the question.
+INJECTION_PHRASES = (
+    "ignore all",
+    "ignore previous",
+    "ignore the above",
+    "previous instructions",
+    "disregard",
+    "mark every",
+    "mark all",
+    "you are now",
+    "system prompt",
+)
+
 
 class StarCheck(SchemaModel):
     """Which STAR parts an answer contains (internal to this agent)."""
@@ -48,6 +63,22 @@ def check_star(question: str, answer: str) -> StarCheck:
         ]
     )
     return generate_structured(prompt, STAR_PROMPT, StarCheck)
+
+
+def _looks_like_injection(answer: str) -> bool:
+    """True if the answer contains phrases that try to instruct the agent."""
+    text = answer.lower()
+    return any(phrase in text for phrase in INJECTION_PHRASES)
+
+
+def _missing_star_parts(question: str, answer: str) -> list[str]:
+    """STAR parts still missing, combining the LLM check with code-level sanity rules."""
+    if _looks_like_injection(answer):
+        return list(STAR_PARTS)  # not a real answer: ask for a real example
+    missing = check_star(question, answer).missing()
+    if not missing and len(answer.split()) < MIN_COMPLETE_WORDS:
+        return ["action", "result"]  # too short to be complete: ask for more detail
+    return missing
 
 
 def _load_examples() -> list[Any]:
@@ -122,7 +153,7 @@ def generate_behavioural_question(
     elif last.question.is_followup:
         mode = "NEXT_TOPIC_AFTER_FOLLOW_UP"  # at most one follow-up per competency
     else:
-        missing = check_star(last.question.question_text, last.student_answer).missing()
+        missing = _missing_star_parts(last.question.question_text, last.student_answer)
         mode = "STAR_FOLLOW_UP" if missing else "NEXT_TOPIC_COMPLETE_STAR"
 
     is_followup = mode == "STAR_FOLLOW_UP"
