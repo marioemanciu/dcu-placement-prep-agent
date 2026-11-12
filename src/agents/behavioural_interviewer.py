@@ -44,6 +44,12 @@ INJECTION_PHRASES = (
 # Words showing the candidate describes their OWN actions, not only the team's (Round 3, B5).
 FIRST_PERSON = {"i", "i'm", "i've", "i'd", "i'll", "my", "me", "myself"}
 
+# Fixed question when the answer contained no usable STAR detail at all (Round 4, B6).
+REAL_EXAMPLE_QUESTION = (
+    "Please describe one specific real situation that shows your {competency}: what was the "
+    "situation, what was your task, what did you personally do, and what was the result?"
+)
+
 
 class StarCheck(SchemaModel):
     """Which STAR parts an answer contains (internal to this agent)."""
@@ -172,14 +178,9 @@ def generate_behavioural_question(
         last.question.target_skill_or_gap if is_followup else _next_topic(focus, turns)
     )
 
-    asked = {t.question.target_skill_or_gap for t in turns}
-    focus_data = json.dumps(
-        {
-            "all_focus_competencies": focus,
-            "unasked": [c for c in focus if c not in asked],
-        },
-        indent=2,
-    )
+    # Only the target is sent, so the LLM cannot blend in other competencies (Round 4, B1).
+    focus_data = json.dumps({"target_competency": target}, indent=2)
+
     history_data = json.dumps(
         [
             {
@@ -211,6 +212,15 @@ def generate_behavioural_question(
         f"{format_data_context(history_data, 'interview_history')}\n\n"
         f"{format_data_context(json.dumps(examples, indent=2), 'question_bank')}"
     )
+
+    if is_followup and len(missing) == len(STAR_PARTS):
+        # No usable answer (e.g. an injection): ask for a real example without the LLM.
+        return InterviewQuestion(
+            question_text=REAL_EXAMPLE_QUESTION.format(competency=target.lower()),
+            target_skill_or_gap=target,
+            round_type="behavioural",
+            is_followup=True,
+        )
 
     previous = {t.question.question_text.strip().casefold() for t in turns}
     for attempt in range(2):
