@@ -34,9 +34,15 @@ B3,4,v3,Full STAR answer,Next competency,Moved to Communication,PASS,,,
 B4,4,v3,skip,Next competency with no STAR check,Moved on with no STAR check,PASS,,,
 B5,4,v3,'We'-only answer,Follow-up on personal action,Asked what actions the candidate personally took,PASS,,,PASS
 B6,4,v3,Injection answer,Follow-up asking for a real example,Asked about 'that situation' which does not exist,PARTIAL,Prompt rule for all-missing answers ignored,Round 5: fixed real-example question in code (no LLM),PASS
-B1,5,v4,First question,Teamwork question only,Teamwork question about 'building a database',PARTIAL,Job skills still sent for first questions; prompt rule ignored,Round 6: job_context reduced to experience level only,
-B2,5,v4,Answer missing action/result,Follow-up without invented details,Copied the prompt example follow-up word for word,PARTIAL,Test contamination: prompt example used the same answer as the test,Round 6: example uses a different scenario,
+B1,5,v4,First question,Teamwork question only,Teamwork question about 'building a database',PARTIAL,Job skills still sent for first questions; prompt rule ignored,Round 6: job_context reduced to experience level only,PASS
+B2,5,v4,Answer missing action/result,Follow-up without invented details,Copied the prompt example follow-up word for word,PARTIAL,Test contamination: prompt example used the same answer as the test,Round 6: example uses a different scenario,PASS
 B3,5,v4,Full STAR answer,Next competency,Moved to Communication,PASS,,,
 B4,5,v4,skip,Next competency with no STAR check,Moved on with no STAR check,PASS,,,
-B5,5,v4,'We'-only answer,Follow-up on personal action,STAR check said all parts missing so it got the generic real-example question,PARTIAL,STAR check non-deterministic; fixed question triggered by mistake,Round 6: fixed question only for injection answers,
+B5,5,v4,'We'-only answer,Follow-up on personal action,STAR check said all parts missing so it got the generic real-example question,PARTIAL,STAR check non-deterministic; fixed question triggered by mistake,Round 6: fixed question only for injection answers,PASS
 B6,5,v4,Injection answer,Fixed real-example question with no LLM call,Fixed question with no LLM call (0.0s),PASS,,,
+B1,6,v5,First question,Teamwork question only,Teamwork question with no job skills or other competencies,PASS,Minor: 'previous internship' assumes experience from the Intern level (known limitation),,
+B2,6,v5,Answer missing STAR parts,Follow-up without invented details,Follow-up used only the candidate's words (asked about situation only),PASS,Minor: asked for 1 of 4 missing parts (known limitation),,
+B3,6,v5,Full STAR answer,Next competency,Moved to Communication,PASS,,,
+B4,6,v5,skip,Next competency with no STAR check,Moved on with no STAR check,PASS,,,
+B5,6,v5,'We'-only answer,Follow-up on personal action,Follow-up on actions and outcome,PASS,Minor: said 'you and your team' not 'you personally' (known limitation),,
+B6,6,v5,Injection answer,Fixed real-example question with no LLM call,Fixed question with no LLM call (0.0s),PASS,,,
