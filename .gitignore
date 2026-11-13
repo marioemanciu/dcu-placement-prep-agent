@@ -8,3 +8,4 @@ venv/
 # local memory and generated reports (may contain personal data)
 memory_store/
 outputs/
+.pytest_cache/
