@@ -26,6 +26,7 @@ QUESTION_PROMPT = (PROJECT_ROOT / "prompts" / "behavioural_interviewer.md").read
 STAR_PROMPT = (PROJECT_ROOT / "prompts" / "star_check.md").read_text(encoding="utf-8")
 STAR_PARTS = ("situation", "task", "action", "result")
 
+# An answer this short cannot realistically cover all four STAR parts, so it always gets
 # a follow-up even if the LLM says it is complete (found in Round 1 testing, B6).
 MIN_COMPLETE_WORDS = 20
 # Phrases that try to instruct the agent instead of answering the question.
@@ -127,7 +128,8 @@ def _job_context(job_analysis: JobAnalysisOutput | dict | None) -> str:
         return "{}"
     if isinstance(job_analysis, dict):
         job_analysis = JobAnalysisOutput.model_validate(job_analysis)
-    return job_analysis.model_dump_json(indent=2)
+    # Only the level: behavioural questions must not pick up technical skills (Round 5, B1).
+    return json.dumps({"experience_level": job_analysis.experience_level})
 
 
 def _next_topic(focus: list[str], turns: list[InterviewTurn]) -> str:
@@ -213,7 +215,7 @@ def generate_behavioural_question(
         f"{format_data_context(json.dumps(examples, indent=2), 'question_bank')}"
     )
 
-    if is_followup and len(missing) == len(STAR_PARTS):
+    if is_followup and _looks_like_injection(last.student_answer):
         # No usable answer (e.g. an injection): ask for a real example without the LLM.
         return InterviewQuestion(
             question_text=REAL_EXAMPLE_QUESTION.format(competency=target.lower()),

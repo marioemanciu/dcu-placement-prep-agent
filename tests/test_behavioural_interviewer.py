@@ -211,6 +211,33 @@ class TestRound1Fixes(unittest.TestCase):
         self.assertTrue(result.is_followup)
         self.assertIn("real situation that shows your teamwork", result.question_text)
 
+    def test_all_missing_without_injection_uses_llm_question(self):  # Round 5: B5
+        star = {"situation": False, "task": False, "action": False, "result": False}
+        with patch.object(
+            bi,
+            "generate_structured",
+            side_effect=fake_llm(star, text="What was your own part in that?"),
+        ):
+            result = bi.generate_behavioural_question(
+                FOCUS, None, [turn(0, Q1, FULL_ANSWER)]
+            )
+
+        self.assertTrue(result.is_followup)
+        self.assertEqual(result.question_text, "What was your own part in that?")
+
+    def test_first_question_gets_level_but_no_job_skills(self):  # Round 5: B1
+        job = {
+            "required_skills": ["PostgreSQL"],
+            "experience_level": "intern",
+            "likely_topics": ["SQL"],
+        }
+        with patch.object(bi, "generate_structured", side_effect=fake_llm()) as llm:
+            bi.generate_behavioural_question(FOCUS, job, [])
+
+        prompt = llm.call_args_list[-1].args[0]
+        self.assertNotIn("PostgreSQL", prompt)
+        self.assertIn("intern", prompt)
+
 
 class TestInputs(unittest.TestCase):
     def test_empty_focus_raises(self):
