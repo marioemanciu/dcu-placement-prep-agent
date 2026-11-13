@@ -10,28 +10,145 @@ The screen shown is chosen from the Coordinator's current stage.
 import streamlit as st
 
 from src.agents import planning
-from src.agents.stubs import stub_gap_analysis, stub_job_analysis, stub_planning
+from src.agents.behavioural_interviewer import generate_behavioural_question
+from src.agents.gap_analysis import gap_analysis_agent
+from src.agents.job_analysis import job_analysis_agent
+from src.agents.stubs import (
+    stub_behavioural_question,
+    stub_gap_analysis,
+    stub_job_analysis,
+    stub_planning,
+    stub_technical_question,
+)
+from src.agents.technical_interviewer import generate_technical_question
 from src.coordinator import Coordinator, CoordinatorError, SessionStage
 from src.llm import OllamaConnectionError, generate_text
+from src.schemas import InterviewTurn
 from src.tools.parser import file_to_text
 
 st.set_page_config(page_title="DCU Placement Preparation Agent", page_icon="💼")
 
 
 # ---------- Setup ----------
+ROUNDS = ("technical", "behavioural")
+ROUND_LENGTH = {
+    "technical": 4,
+    "behavioural": 4,
+}  # questions per round, follow-ups included
+SKIP = "skip"  # stored for skipped answers (schemas reject blank strings); never followed up
+
+
 def build_coordinator(use_llm: bool) -> Coordinator:
-    """Wire the agents into the Coordinator. Swap each stub for the real agent when it lands."""
+    """Wire the agents into the Coordinator: real agents, or fast stubs for UI work."""
+    if use_llm:
+        return Coordinator(
+            job_analysis_agent=job_analysis_agent,
+            gap_analysis_agent=gap_analysis_agent,
+            planning_agent=planning.run,
+        )
     return Coordinator(
-        job_analysis_agent=stub_job_analysis,  # TODO: real Job-analysis Agent
-        gap_analysis_agent=stub_gap_analysis,  # TODO: real Gap-analysis Agent
-        planning_agent=planning.run if use_llm else stub_planning,
+        job_analysis_agent=stub_job_analysis,
+        gap_analysis_agent=stub_gap_analysis,
+        planning_agent=stub_planning,
     )
+
+
+def interviewers(use_llm: bool) -> dict:
+    if use_llm:
+        return {
+            "technical": generate_technical_question,
+            "behavioural": generate_behavioural_question,
+        }
+    return {
+        "technical": stub_technical_question,
+        "behavioural": stub_behavioural_question,
+    }
 
 
 def start_new_session() -> None:
     st.session_state.coordinator = build_coordinator(st.session_state.use_llm)
     st.session_state.analysis = None
+    st.session_state.interview = None
     st.session_state.error = None
+
+
+def next_question(interview: dict) -> None:
+    """Get the next question from the current round's interviewer, or move to the next round.
+
+    The UI decides when a round ends (ROUND_LENGTH); the interviewers decide the topic
+    and whether to follow up.
+    """
+    plan = st.session_state.coordinator.state.plan
+    focus = {"technical": plan.technical_focus, "behavioural": plan.behavioural_focus}
+    while interview["round_index"] < len(ROUNDS):
+        round_type = ROUNDS[interview["round_index"]]
+        asked = sum(
+            1 for t in interview["history"] if t.question.round_type == round_type
+        )
+        if focus[round_type] and asked < ROUND_LENGTH[round_type]:
+            agent = interviewers(st.session_state.use_llm)[round_type]
+            interview["question"] = agent(
+                focus[round_type],
+                st.session_state.coordinator.state.job_analysis,
+                interview["history"],
+            )
+            return
+        interview["round_index"] += 1
+    interview["question"] = None  # both rounds finished
+
+
+def label(question) -> str:
+    text = f"{question.round_type.title()} round · {question.target_skill_or_gap}"
+    return text + " · follow-up" if question.is_followup else text
+
+
+def show_interview(interview: dict) -> None:
+    """Chat view: past turns, then the current question with Answer / Skip (H2)."""
+    for turn in interview["history"]:
+        with st.chat_message("assistant"):
+            st.caption(label(turn.question))
+            st.write(turn.question.question_text)
+        with st.chat_message("user"):
+            st.write(
+                "_(skipped)_" if turn.student_answer == SKIP else turn.student_answer
+            )
+
+    question = interview["question"]
+    if question is None:
+        st.success("Interview complete! Scoring and your report come next.")
+        return
+
+    with st.chat_message("assistant"):
+        st.caption(label(question))
+        st.write(question.question_text)
+
+    with st.form(f"answer_{len(interview['history'])}", clear_on_submit=True):
+        answer = st.text_area("Your answer", height=150)
+        col_send, col_skip = st.columns(2)
+        send = col_send.form_submit_button("Send answer", type="primary")
+        skip = col_skip.form_submit_button("Skip question")
+
+    if send and not answer.strip():
+        st.session_state.error = "Write an answer, or press Skip."
+        st.rerun()
+    if send or skip:
+        st.session_state.error = None
+        interview["history"].append(
+            InterviewTurn(
+                turn_index=len(interview["history"]),
+                question=question,
+                student_answer=answer.strip() if send else SKIP,
+            )
+        )
+        try:
+            with st.spinner("Thinking about your answer..."):
+                next_question(interview)
+        except (ValueError, OllamaConnectionError) as error:
+            interview["history"].pop()  # undo, so the student can resend
+            st.session_state.error = (
+                f"Could not get the next question ({error}). Please send again."
+            )
+        st.rerun()
 
 
 if "use_llm" not in st.session_state:
@@ -47,7 +164,7 @@ with st.sidebar:
     st.header("Settings")
     student_id = st.text_input("Student ID", value="demo_student")
     use_llm = st.toggle(
-        "Use real Planning Agent (needs Ollama)",
+        "Use real agents (needs Ollama)",
         value=st.session_state.use_llm,
         help="Off = fast stub agents only, useful when working on the UI.",
     )
@@ -177,6 +294,21 @@ elif stage == SessionStage.READY_FOR_INTERVIEW:
     )
 
     st.divider()
-    st.info(
-        "🚧 Mock interview coming soon (Technical and Behavioural Interviewer agents)."
-    )
+    st.subheader("Mock interview")
+    interview = st.session_state.interview
+    if interview is None:
+        st.write(
+            f"{ROUND_LENGTH['technical']} technical questions, then "
+            f"{ROUND_LENGTH['behavioural']} behavioural (STAR) questions. You can skip any question."
+        )
+        if st.button("🎤 Start mock interview", type="primary"):
+            new_interview = {"round_index": 0, "history": [], "question": None}
+            try:
+                with st.spinner("Preparing your first question..."):
+                    next_question(new_interview)
+                st.session_state.interview = new_interview
+            except (ValueError, OllamaConnectionError) as error:
+                st.session_state.error = f"Could not start the interview: {error}"
+            st.rerun()
+    else:
+        show_interview(interview)

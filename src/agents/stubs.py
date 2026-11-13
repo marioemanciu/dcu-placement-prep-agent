@@ -2,11 +2,12 @@
 
 They follow the same contracts as the real agents (see src/schemas.py and the
 Coordinator), so each one can be swapped for the real agent with a one-line change.
-They use simple keyword matching, not the LLM. Delete each stub once its agent lands.
+They use simple keyword matching, not the LLM. Kept as an offline fallback for UI work and the demo.
 """
 
 from src.schemas import (
     GapAnalysisOutput,
+    InterviewQuestion,
     JobAnalysisOutput,
     PlanningOutput,
     SkillEvidence,
@@ -82,3 +83,25 @@ def stub_planning(gaps, job_analysis, previous_memory) -> PlanningOutput:
         technical_focus=names[:3],
         behavioural_focus=["Teamwork", "Communication"],
     )
+
+
+def _stub_question(focus, history, round_type, template):
+    """Cycle through the focus topics; numbered so no question repeats."""
+    asked = [t for t in (history or []) if t.question.round_type == round_type]
+    topic = focus[len(asked) % len(focus)]
+    return InterviewQuestion(
+        question_text=f"{template.format(topic=topic)} (Q{len(asked) + 1})",
+        target_skill_or_gap=topic,
+        round_type=round_type,
+        is_followup=False,
+    )
+
+
+def stub_technical_question(technical_focus, job_analysis=None, interview_history=None):
+    return _stub_question(technical_focus, interview_history, "technical",
+                          "Explain how you have used {topic} in a project.")
+
+
+def stub_behavioural_question(behavioural_focus, job_analysis=None, interview_history=None):
+    return _stub_question(behavioural_focus, interview_history, "behavioural",
+                          "Tell me about a time you showed {topic}.")
