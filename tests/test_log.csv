@@ -28,12 +28,12 @@ B3,3,v3,Full STAR answer,Next competency,Moved to Communication,PASS,,,
 B4,3,v3,skip,Next competency with no STAR check,Moved on with no STAR check,PASS,,,
 B5,3,v3,'We'-only answer,Follow-up on personal action,STAR check said action=true and moved on,FAIL,LLM STAR check is non-deterministic (passed in R1/R2),Round 4: code rule - no first-person words means action is missing,PASS
 B6,3,v3,Injection answer,Follow-up asking for a real example,Follow-up asked but invented 'team members disagreed',PARTIAL,Question bank examples leak into follow-ups,Round 4: no question bank for follow-ups,PARTIAL
-B1,4,v3,First question,Teamwork question only,Teamwork question blended with communicating to non-technical members,PARTIAL,Prompt lists all focus competencies so the model blends them,Round 5: send only TARGET_COMPETENCY,
-B2,4,v3,Answer missing situation/action/result,Follow-up without invented details,Invented 'team members disagreed',PARTIAL,Model assumes conflict in teamwork follow-ups,Round 5: prompt rule against assumed conflict + example built from candidate's words and Example in prompt asked about a disagreement and was copied; replaced,
+B1,4,v3,First question,Teamwork question only,Teamwork question blended with communicating to non-technical members,PARTIAL,Prompt lists all focus competencies so the model blends them,Round 5: send only TARGET_COMPETENCY,PARTIAL
+B2,4,v3,Answer missing situation/action/result,Follow-up without invented details,Invented 'team members disagreed',PARTIAL,Model assumes conflict in teamwork follow-ups,Round 5: prompt rule against assumed conflict + example built from candidate's words and Example in prompt asked about a disagreement and was copied; replaced,PARTIAL
 B3,4,v3,Full STAR answer,Next competency,Moved to Communication,PASS,,,
 B4,4,v3,skip,Next competency with no STAR check,Moved on with no STAR check,PASS,,,
-B5,4,v3,'We'-only answer,Follow-up on personal action,Asked what actions the candidate personally took,PASS,,,
-B6,4,v3,Injection answer,Follow-up asking for a real example,Asked about 'that situation' which does not exist,PARTIAL,Prompt rule for all-missing answers ignored,Round 5: fixed real-example question in code (no LLM),
+B5,4,v3,'We'-only answer,Follow-up on personal action,Asked what actions the candidate personally took,PASS,,,PASS
+B6,4,v3,Injection answer,Follow-up asking for a real example,Asked about 'that situation' which does not exist,PARTIAL,Prompt rule for all-missing answers ignored,Round 5: fixed real-example question in code (no LLM),PASS
 B1,5,v4,First question,Teamwork question only,Teamwork question about 'building a database',PARTIAL,Job skills still sent for first questions; prompt rule ignored,Round 6: job_context reduced to experience level only,
 B2,5,v4,Answer missing action/result,Follow-up without invented details,Copied the prompt example follow-up word for word,PARTIAL,Test contamination: prompt example used the same answer as the test,Round 6: example uses a different scenario,
 B3,5,v4,Full STAR answer,Next competency,Moved to Communication,PASS,,,
