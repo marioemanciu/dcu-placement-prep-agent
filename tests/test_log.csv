@@ -46,3 +46,4 @@ B3,6,v5,Full STAR answer,Next competency,Moved to Communication,PASS,,,
 B4,6,v5,skip,Next competency with no STAR check,Moved on with no STAR check,PASS,,,
 B5,6,v5,'We'-only answer,Follow-up on personal action,Follow-up on actions and outcome,PASS,Minor: said 'you and your team' not 'you personally' (known limitation),,
 B6,6,v5,Injection answer,Fixed real-example question with no LLM call,Fixed question with no LLM call (0.0s),PASS,,,
+UI2,1,v5,"UI end-to-end, real agents: test CV + intern JD","Full flow runs; follow-ups behave; every focus topic asked","Flow complete with real agents; behavioural follow-up grounded; Git (3rd technical topic) never asked",PARTIAL,"Fixed round length (4) used up by follow-ups; agent issues raised with Maksym (soft skills dropped, weak gap evidence, technical too advanced + topic bleed)","code: round length = 2 x focus topics, capped at 6","PASS (stubs: 6 technical + 4 behavioural)"

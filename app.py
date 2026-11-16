@@ -31,10 +31,7 @@ st.set_page_config(page_title="DCU Placement Preparation Agent", page_icon="💼
 
 # ---------- Setup ----------
 ROUNDS = ("technical", "behavioural")
-ROUND_LENGTH = {
-    "technical": 4,
-    "behavioural": 4,
-}  # questions per round, follow-ups included
+MAX_PER_ROUND = 6  # cap so a demo interview stays short
 SKIP = "skip"  # stored for skipped answers (schemas reject blank strings); never followed up
 
 
@@ -75,7 +72,7 @@ def start_new_session() -> None:
 def next_question(interview: dict) -> None:
     """Get the next question from the current round's interviewer, or move to the next round.
 
-    The UI decides when a round ends (ROUND_LENGTH); the interviewers decide the topic
+    The UI decides when a round ends (2 x focus topics, max MAX_PER_ROUND); the interviewers decide the topic
     and whether to follow up.
     """
     plan = st.session_state.coordinator.state.plan
@@ -85,7 +82,10 @@ def next_question(interview: dict) -> None:
         asked = sum(
             1 for t in interview["history"] if t.question.round_type == round_type
         )
-        if focus[round_type] and asked < ROUND_LENGTH[round_type]:
+        limit = min(
+            MAX_PER_ROUND, 2 * len(focus[round_type])
+        )  # one follow-up per topic
+        if focus[round_type] and asked < limit:
             agent = interviewers(st.session_state.use_llm)[round_type]
             interview["question"] = agent(
                 focus[round_type],
@@ -298,8 +298,8 @@ elif stage == SessionStage.READY_FOR_INTERVIEW:
     interview = st.session_state.interview
     if interview is None:
         st.write(
-            f"{ROUND_LENGTH['technical']} technical questions, then "
-            f"{ROUND_LENGTH['behavioural']} behavioural (STAR) questions. You can skip any question."
+            "A technical round, then a behavioural (STAR) round: one question per focus "
+            "topic, plus follow-ups. You can skip any question."
         )
         if st.button("🎤 Start mock interview", type="primary"):
             new_interview = {"round_index": 0, "history": [], "question": None}
