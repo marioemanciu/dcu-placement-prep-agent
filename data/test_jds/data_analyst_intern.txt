@@ -1,0 +1,21 @@
+Data Analyst Intern (6-month placement)
+
+About the role
+Our analytics team supports an Irish retail group with reports on sales, stock and customer behaviour. We are looking for a student on placement to help turn data into decisions.
+
+What you will do
+- Write SQL queries to pull and clean data from our data warehouse
+- Build and update dashboards in Power BI
+- Analyse trends in Excel and present findings to store and marketing managers
+- Check data quality and document how each report is calculated
+
+Requirements
+- Strong SQL skills, including joins and aggregations
+- Advanced Excel (pivot tables, lookups, charts)
+- Understanding of basic statistics (averages, distributions, correlation)
+- Ability to explain findings clearly to non-technical colleagues
+- Attention to detail
+
+Nice to have
+- Power BI or Tableau
+- Python for data analysis (pandas)

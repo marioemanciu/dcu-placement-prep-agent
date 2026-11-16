@@ -1,0 +1,21 @@
+Frontend Web Developer Intern (Summer 2027)
+
+About the role
+We are a small digital agency building websites and web apps for Irish charities and education providers. We are looking for a student who enjoys building clean, accessible user interfaces.
+
+What you will do
+- Build responsive pages and components with HTML, CSS and JavaScript
+- Develop features in React and connect them to REST APIs
+- Fix layout and accessibility issues reported by clients
+- Work with designers to turn Figma mock-ups into working pages
+
+Requirements
+- Good knowledge of HTML, CSS and JavaScript
+- Experience with React or another modern frontend framework
+- Understanding of responsive design and web accessibility (WCAG)
+- Familiarity with Git
+- Good communication skills and willingness to take feedback from clients
+
+Nice to have
+- TypeScript
+- Experience with Figma

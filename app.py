@@ -8,6 +8,8 @@ The screen shown is chosen from the Coordinator's current stage.
 """
 
 import streamlit as st
+from pathlib import Path
+from io import BytesIO
 
 from src.agents import planning
 from src.agents.behavioural_interviewer import generate_behavioural_question
@@ -33,6 +35,8 @@ st.set_page_config(page_title="DCU Placement Preparation Agent", page_icon="💼
 ROUNDS = ("technical", "behavioural")
 MAX_PER_ROUND = 6  # cap so a demo interview stays short
 SKIP = "skip"  # stored for skipped answers (schemas reject blank strings); never followed up
+SAMPLE_JDS = Path(__file__).parent / "data" / "test_jds"  # demo job descriptions
+SAMPLE_CVS = Path(__file__).parent / "data" / "test_cvs"  # demo CVs (fictional)
 
 
 def build_coordinator(use_llm: bool) -> Coordinator:
@@ -206,15 +210,34 @@ if stage in (SessionStage.INTAKE, SessionStage.ANALYSIS_REJECTED):
         )
 
     st.write("Upload your CV and paste the job description you're applying for.")
+    cv_samples = sorted(SAMPLE_CVS.glob("*.docx"))
+    cv_names = ["Upload my own"] + [
+        p.stem.replace("test_cv_", "").replace("_", " ").title() for p in cv_samples
+    ]
+    cv_choice = st.selectbox("Sample CV (optional)", cv_names)
+    samples = sorted(SAMPLE_JDS.glob("*.txt"))
+    names = ["Paste my own"] + [p.stem.replace("_", " ").title() for p in samples]
+    choice = st.selectbox("Sample job description (optional)", names)
+    sample_text = (
+        ""
+        if choice == names[0]
+        else samples[names.index(choice) - 1].read_text(encoding="utf-8")
+    )
     with st.form("intake"):
         cv_file = st.file_uploader("Your CV (PDF or Word)", type=["pdf", "docx"])
-        job_description = st.text_area("Job description", height=200)
+        job_description = st.text_area("Job description", value=sample_text, height=200)
         submitted = st.form_submit_button("Analyse")
 
     if submitted:
         st.session_state.error = None
+        if cv_file is None and cv_choice != cv_names[0]:  # an upload wins over a sample
+            path = cv_samples[cv_names.index(cv_choice) - 1]
+            cv_file = BytesIO(path.read_bytes())
+            cv_file.name = path.name  # looks like an uploaded file to the parser
         if cv_file is None or not job_description.strip():
-            st.session_state.error = "Please upload a CV and paste a job description."
+            st.session_state.error = (
+                "Please upload or pick a CV, and add a job description."
+            )
             st.rerun()
         try:
             cv_text = file_to_text(cv_file)
