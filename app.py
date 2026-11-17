@@ -10,6 +10,7 @@ The screen shown is chosen from the Coordinator's current stage.
 import streamlit as st
 from pathlib import Path
 from io import BytesIO
+from datetime import date
 
 from src.agents import planning
 from src.agents.behavioural_interviewer import generate_behavioural_question
@@ -20,13 +21,16 @@ from src.agents.stubs import (
     stub_gap_analysis,
     stub_job_analysis,
     stub_planning,
+    stub_score_interview,
     stub_technical_question,
 )
+from src.agents.scoring import score_interview
 from src.agents.technical_interviewer import generate_technical_question
 from src.coordinator import Coordinator, CoordinatorError, SessionStage
 from src.llm import OllamaConnectionError, generate_text
-from src.schemas import InterviewTurn
+from src.schemas import InterviewTurn, PersistentWeakness
 from src.tools.parser import file_to_text
+from src.tools.report import build_report, round_average, weak_topics
 
 st.set_page_config(page_title="DCU Placement Preparation Agent", page_icon="💼")
 
@@ -119,7 +123,7 @@ def show_interview(interview: dict) -> None:
 
     question = interview["question"]
     if question is None:
-        st.success("Interview complete! Scoring and your report come next.")
+        show_results(interview)
         return
 
     with st.chat_message("assistant"):
@@ -155,6 +159,124 @@ def show_interview(interview: dict) -> None:
         st.rerun()
 
 
+def weakness_records(history: list[InterviewTurn]) -> list[dict]:
+    """One PersistentWeakness per weak or skipped topic, for long-term memory (H3)."""
+    records = []
+    for topic in weak_topics(history):
+        scored = [
+            t for t in history if t.question.target_skill_or_gap == topic and t.score
+        ]
+        worst = min(scored, key=lambda t: t.score.score) if scored else None
+        records.append(
+            PersistentWeakness(
+                skill=topic,
+                last_score=worst.score.score if worst else 1,
+                notes=(
+                    worst.score.actionable_feedback
+                    if worst
+                    else "Skipped in the last session."
+                ),
+            ).model_dump()
+        )
+    return records
+
+
+def save_progress(history: list[InterviewTurn]) -> None:
+    """H3: save weak topics and averages. Only called after the student ticks consent."""
+    coordinator = st.session_state.coordinator
+    student_id = st.session_state.student_id
+    new = weakness_records(history)
+    new_skills = {w["skill"] for w in new}
+    old = [
+        w
+        for w in coordinator.memory.load(student_id)["weaknesses"]
+        if w.get("skill") not in new_skills
+    ]
+    averages = {r: round_average(history, r) for r in ROUNDS}
+    coordinator.memory.update(
+        student_id,
+        weaknesses=old + new,
+        scores={r: a for r, a in averages.items() if a is not None},
+        progress_entry={"date": date.today().isoformat(), **averages},
+        consent=True,
+    )
+
+
+def show_results(interview: dict) -> None:
+    """After the interview: score it, show score cards, offer the report and H3 consent."""
+    st.success("Interview complete!")
+    coordinator = st.session_state.coordinator
+    if not interview.get("scored"):
+        if st.button("📊 Get my scores", type="primary"):
+            scorer = (
+                score_interview if st.session_state.use_llm else stub_score_interview
+            )
+            try:
+                with st.spinner("Scoring your answers..."):
+                    interview["history"] = scorer(
+                        interview["history"], coordinator.state.job_analysis
+                    )
+                interview["scored"] = True
+            except (ValueError, OllamaConnectionError) as error:
+                st.session_state.error = f"Could not score the interview: {error}"
+            st.rerun()
+        return
+
+    history = interview["history"]
+    st.subheader("Your scores")
+    for column, round_type in zip(st.columns(2), ROUNDS):
+        average = round_average(history, round_type)
+        column.metric(
+            f"{round_type.title()} round",
+            f"{average}/5" if average is not None else "not scored",
+        )
+    for number, turn in enumerate(history, start=1):
+        score = turn.score
+        result = f"{score.score}/5" if score else "skipped"
+        with st.expander(f"Q{number} · {label(turn.question)} · {result}"):
+            st.write(f"**Question:** {turn.question.question_text}")
+            if score is None:
+                st.write("_Skipped answers are not scored._")
+                continue
+            st.write(f"**Your answer:** {turn.student_answer}")
+            st.write(
+                f"**Evidence:** “{score.evidence_quote}”  ({score.rubric_criterion})"
+            )
+            st.write(f"**How to improve:** {score.actionable_feedback}")
+
+    st.download_button(
+        "📄 Download report (.docx)",
+        data=build_report(
+            coordinator.state.job_analysis,
+            st.session_state.analysis["strengths"],
+            coordinator.state.confirmed_gaps,
+            coordinator.state.plan,
+            history,
+            st.session_state.student_id,
+        ),
+        file_name=f"interview_report_{st.session_state.student_id}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+    st.divider()
+    st.subheader("Save your progress (optional)")
+    weak = weak_topics(history)
+    if interview.get("saved"):
+        st.success("Saved. Your next session will prioritise these topics.")
+    elif not weak:
+        st.write("No weak topics this time, so there is nothing to save.")
+    else:
+        st.write("Topics to work on: " + ", ".join(weak))
+        consent = st.checkbox(
+            "Save these topics and my scores for my next session "
+            "(your CV and answers are not stored)"
+        )
+        if st.button("💾 Save", disabled=not consent):
+            save_progress(history)
+            interview["saved"] = True
+            st.rerun()
+
+
 if "use_llm" not in st.session_state:
     st.session_state.use_llm = True
 if "coordinator" not in st.session_state:
@@ -162,11 +284,10 @@ if "coordinator" not in st.session_state:
 
 coordinator: Coordinator = st.session_state.coordinator
 
-
 # ---------- Sidebar ----------
 with st.sidebar:
     st.header("Settings")
-    student_id = st.text_input("Student ID", value="demo_student")
+    student_id = st.text_input("Student ID", value="demo_student", key="student_id")
     use_llm = st.toggle(
         "Use real agents (needs Ollama)",
         value=st.session_state.use_llm,
