@@ -9,3 +9,4 @@ venv/
 memory_store/
 outputs/
 .pytest_cache/
+.vscode/
