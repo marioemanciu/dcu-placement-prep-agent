@@ -238,6 +238,21 @@ class TestRound1Fixes(unittest.TestCase):
         self.assertNotIn("PostgreSQL", prompt)
         self.assertIn("intern", prompt)
 
+    def test_follow_up_history_only_has_current_competency(self):  # UI6
+        comm = question(
+            "Describe a time you explained something complex.", "Communication"
+        )
+        history = [
+            turn(0, comm, "skip"),
+            turn(1, Q1, "We built an app in a team for a college module."),
+        ]
+        star = {"situation": False, "task": True, "action": False, "result": False}
+        with patch.object(bi, "generate_structured", side_effect=fake_llm(star)) as llm:
+            result = bi.generate_behavioural_question(FOCUS, None, history)
+
+        self.assertTrue(result.is_followup)
+        self.assertNotIn("explained something complex", llm.call_args_list[-1].args[0])
+
 
 class TestInputs(unittest.TestCase):
     def test_empty_focus_raises(self):
