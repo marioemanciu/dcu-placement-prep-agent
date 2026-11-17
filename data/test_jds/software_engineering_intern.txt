@@ -1,0 +1,21 @@
+Software Engineering Intern (Summer 2027)
+
+About the role
+We are a Dublin-based fintech building payment tools for small businesses. Our platform team is looking for a 2nd or 3rd-year student to join us for a 12-week summer internship.
+
+What you will do
+- Build and maintain backend services and REST APIs in Python
+- Write unit and integration tests for new features
+- Package services with Docker and help deploy them to our test environment
+- Take part in code reviews, stand-ups and sprint planning
+
+Requirements
+- Experience with Python from projects or coursework
+- Working knowledge of SQL and relational databases
+- Familiarity with Git and pull-request workflows
+- Some experience with automated testing
+- Strong communication and teamwork skills
+
+Nice to have
+- Docker or other container tools
+- Experience with a web framework such as FastAPI, Flask or Django
