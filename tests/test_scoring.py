@@ -133,6 +133,33 @@ class TestScoreAnswer(unittest.TestCase):
         self.assertIn("CRITERION: Technical accuracy", prompt)
 
 
+class TestRound1Fixes(unittest.TestCase):
+    def test_we_only_star_answer_capped_at_3(self):  # S4
+        answer = (
+            "During a hackathon our team had to build a chatbot in 24 hours. We split the work, "
+            "we designed the flow and we presented it, and we came second."
+        )
+        with patch.object(
+            scoring,
+            "generate_structured",
+            return_value=llm_reply(score=5, quote="we came second"),
+        ):
+            result = scoring.score_answer(turn(answer, "behavioural"))
+
+        self.assertEqual(result.score, 3)
+
+    def test_long_quote_is_shortened(self):  # S1
+        with patch.object(
+            scoring, "generate_structured", return_value=llm_reply(quote=LONG_TECH)
+        ):
+            result = scoring.score_answer(turn(LONG_TECH))
+
+        self.assertLessEqual(
+            len(result.evidence_quote.split()), scoring.MAX_QUOTE_WORDS + 1
+        )
+        self.assertTrue(result.evidence_quote.endswith("..."))
+
+
 class TestHelpers(unittest.TestCase):
     def test_quote_match_ignores_case_spacing_and_quotes(self):
         self.assertTrue(

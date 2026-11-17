@@ -14,7 +14,7 @@ import json
 import re
 from pathlib import Path
 
-from src.agents.behavioural_interviewer import _looks_like_injection
+from src.agents.behavioural_interviewer import _looks_like_injection, _uses_first_person
 from src.agents.technical_interviewer import _is_pass_or_unknown
 from src.llm import format_data_context, generate_structured
 from src.schemas import InterviewTurn, JobAnalysisOutput, ScoreOutput
@@ -31,6 +31,8 @@ CRITERION_FOR_ROUND = {
 SHORT_ANSWER_WORDS = 10  # answers shorter than this cannot score above SHORT_ANSWER_MAX
 SHORT_ANSWER_MAX = 2
 MAX_QUOTE_WORDS = 25
+# STAR answers that only say "we" are missing the candidate's own Action (Round 1, S4).
+NO_PERSONAL_ACTION_MAX = 3
 
 
 def _rubric_anchors(criterion: str) -> tuple[str, str]:
@@ -52,13 +54,17 @@ def _quote_in_answer(quote: str, answer: str) -> bool:
     return bool(_normalise(quote)) and _normalise(quote) in _normalise(answer)
 
 
-def _fallback_quote(answer: str) -> str:
-    """The answer's first sentence, shortened: always a genuine quote."""
-    first = re.split(r"(?<=[.!?])\s+", answer.strip())[0]
-    words = first.split()
+def _shorten(quote: str) -> str:
+    """Keep quotes readable: at most MAX_QUOTE_WORDS words (Round 1, S1)."""
+    words = quote.split()
     return " ".join(words[:MAX_QUOTE_WORDS]) + (
         " ..." if len(words) > MAX_QUOTE_WORDS else ""
     )
+
+
+def _fallback_quote(answer: str) -> str:
+    """The answer's first sentence, shortened: always a genuine quote."""
+    return _shorten(re.split(r"(?<=[.!?])\s+", answer.strip())[0])
 
 
 def _fixed_score(criterion: str, answer: str, feedback: str) -> ScoreOutput:
@@ -108,7 +114,7 @@ def score_answer(
     for _attempt in range(2):
         generated = generate_structured(prompt, SCORING_PROMPT, ScoreOutput)
         if _quote_in_answer(generated.evidence_quote, answer):
-            quote = generated.evidence_quote.strip()
+            quote = _shorten(generated.evidence_quote.strip())
             break
         prompt += (
             "\n\nYour evidence_quote was not copied word for word from <answer>. "
@@ -122,6 +128,8 @@ def score_answer(
     score = generated.score
     if len(answer.split()) < SHORT_ANSWER_WORDS:
         score = min(score, SHORT_ANSWER_MAX)  # too short to show the skill properly
+    if turn.question.round_type == "behavioural" and not _uses_first_person(answer):
+        score = min(score, NO_PERSONAL_ACTION_MAX)  # only "we": no personal Action
 
     return ScoreOutput(
         score=score,
