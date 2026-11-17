@@ -2,7 +2,7 @@
 #
 # Created by    : Maksym Sharai
 # Date          : 12/11/2026
-
+# Edited by : Mario Ciuciu (17/11/2026)
 
 import json
 import re
@@ -17,7 +17,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.llm import format_data_context, generate_structured
 from src.schemas import InterviewQuestion, InterviewTurn, JobAnalysisOutput
-
 
 SYSTEM_PROMPT = (PROJECT_ROOT / "prompts" / "technical_interviewer.md").read_text(
     encoding="utf-8"
@@ -53,7 +52,9 @@ def _normalize_job_analysis(
             mode="json"
         )
     else:
-        raise ValueError("job_analysis must be a JobAnalysisOutput, dictionary, or None")
+        raise ValueError(
+            "job_analysis must be a JobAnalysisOutput, dictionary, or None"
+        )
     return json.dumps(normalized, ensure_ascii=False, indent=2)
 
 
@@ -120,7 +121,9 @@ def _is_pass_or_unknown(answer: str) -> bool:
         "unsure",
         "next question",
     )
-    if any(re.search(rf"\b{re.escape(phrase)}\b", normalized) for phrase in pass_phrases):
+    if any(
+        re.search(rf"\b{re.escape(phrase)}\b", normalized) for phrase in pass_phrases
+    ):
         return True
 
     short_passes = {
@@ -134,6 +137,46 @@ def _is_pass_or_unknown(answer: str) -> bool:
     return len(normalized.split()) <= 2 and normalized in short_passes
 
 
+# ---------- Added by Mario Ciuciu, 17/11/2026, after UI7 live testing ----------
+# UI7 showed a follow-up about SQL drifting into Docker (the prompt saw every topic),
+# and the same Docker question asked twice in a row (next topic fell back to
+# cleaned_focus[0], and only exact repeats were caught).
+SIMILARITY_LIMIT = 0.7  # questions sharing this share of their words count as repeats
+
+
+def _next_topic(focus: list[str], history_turns: list[dict[str, Any]]) -> str:
+    """The first unasked skill; otherwise the least-asked one, never the skill just asked."""
+    counts = {skill: 0 for skill in focus}
+    for turn in history_turns:
+        if turn.get("target_skill") in counts and not turn.get("is_followup"):
+            counts[turn["target_skill"]] += 1
+    last_skill = history_turns[-1].get("target_skill") if history_turns else None
+    options = [skill for skill in focus if skill != last_skill] or focus
+    return min(
+        options, key=lambda skill: counts[skill]
+    )  # min keeps focus order on ties
+
+
+def _words(text: str) -> set[str]:
+    return {word for word in re.findall(r"[a-z0-9']+", text.lower()) if len(word) > 3}
+
+
+def _too_similar(question: str, previous: list[str]) -> bool:
+    """True if the question repeats an earlier one exactly or with mostly the same words."""
+    words = _words(question)
+    for old in previous:
+        if question.strip().casefold() == old.strip().casefold():
+            return True
+        old_words = _words(old)
+        if (
+            words
+            and old_words
+            and len(words & old_words) / len(words | old_words) >= SIMILARITY_LIMIT
+        ):
+            return True
+    return False
+
+
 def generate_technical_question(
     technical_focus: list[str],
     job_analysis: JobAnalysisOutput | dict[str, Any] | None = None,
@@ -144,9 +187,13 @@ def generate_technical_question(
     if (
         not isinstance(technical_focus, list)
         or not technical_focus
-        or any(not isinstance(skill, str) or not skill.strip() for skill in technical_focus)
+        or any(
+            not isinstance(skill, str) or not skill.strip() for skill in technical_focus
+        )
     ):
-        raise ValueError("technical_focus must be a non-empty list of non-blank strings")
+        raise ValueError(
+            "technical_focus must be a non-empty list of non-blank strings"
+        )
 
     # Clean focus names before comparing them with skills already covered in history.
     cleaned_focus = [skill.strip() for skill in technical_focus]
@@ -154,9 +201,7 @@ def generate_technical_question(
     history_context = _normalize_interview_history(interview_history)
     history_turns = json.loads(history_context) if history_context else []
     asked_skills = {
-        turn.get("target_skill")
-        for turn in history_turns
-        if turn.get("target_skill")
+        turn.get("target_skill") for turn in history_turns if turn.get("target_skill")
     }
     unasked_skills = [skill for skill in cleaned_focus if skill not in asked_skills]
     # The most recent answer determines whether to probe further or move to another skill.
@@ -171,12 +216,12 @@ def generate_technical_question(
     )
     if last_turn is None:
         # Start with the first focus area when there is no previous conversation.
-        target_skill = unasked_skills[0] if unasked_skills else cleaned_focus[0]
+        target_skill = _next_topic(cleaned_focus, history_turns)
         force_followup = False
         mode = "INITIAL_QUESTION"
     elif candidate_passed or last_turn_was_followup:
         # A pass or a completed follow-up ends this topic and advances the interview.
-        target_skill = unasked_skills[0] if unasked_skills else cleaned_focus[0]
+        target_skill = _next_topic(cleaned_focus, history_turns)
         force_followup = False
         mode = (
             "NEXT_TOPIC_AFTER_PASS"
@@ -188,6 +233,14 @@ def generate_technical_question(
         target_skill = last_turn["target_skill"]
         force_followup = True
         mode = "ADAPTIVE_FOLLOW_UP"
+
+        # Follow-ups see only this skill's turns, so other topics cannot bleed in (UI7).
+    shown_turns = (
+        [turn for turn in history_turns if turn.get("target_skill") == target_skill]
+        if force_followup
+        else history_turns
+    )
+    shown_history = json.dumps(shown_turns, ensure_ascii=False, indent=2)
 
     focus_payload = {
         "all_focus_skills": cleaned_focus,
@@ -213,30 +266,30 @@ def generate_technical_question(
         f"MODE: {mode}\n\n"
         f"{format_data_context(focus_data, 'technical_focus')}\n\n"
         f"{format_data_context(job_context, 'job_context')}\n\n"
-        f"{format_data_context(history_context, 'interview_history')}\n\n"
+        f"{format_data_context(shown_history, 'interview_history')}\n\n"
         f"{format_data_context(question_bank, 'question_bank')}"
     )
     # Request a schema-checked response, then enforce fields controlled by this agent.
-    question = generate_structured(prompt, SYSTEM_PROMPT, InterviewQuestion)
-    result = InterviewQuestion.model_validate(
-        {
-            **question.model_dump(mode="python"),
-            "target_skill_or_gap": target_skill,
-            "round_type": "technical",
-            "is_followup": force_followup,
-        }
-    )
-    # Reject exact repeats even if the model overlooks the instruction in the prompt.
-    previous_questions = {
-        turn["question_text"].strip().casefold()
-        for turn in history_turns
-    }
-    if result.question_text.strip().casefold() in previous_questions:
-        raise ValueError("The generated technical question repeats a previous question.")
-    return result
-
-
-technical_interviewer_agent = generate_technical_question
+    # Request a schema-checked response, then enforce fields controlled by this agent.
+    # Exact and near-identical repeats get one retry (UI7), then raise as before.
+    previous_questions = [turn["question_text"] for turn in history_turns]
+    for _attempt in range(2):
+        question = generate_structured(prompt, SYSTEM_PROMPT, InterviewQuestion)
+        result = InterviewQuestion.model_validate(
+            {
+                **question.model_dump(mode="python"),
+                "target_skill_or_gap": target_skill,
+                "round_type": "technical",
+                "is_followup": force_followup,
+            }
+        )
+        if not _too_similar(result.question_text, previous_questions):
+            return result
+        prompt += (
+            "\n\nYour last question was too similar to an earlier one. "
+            "Ask about a different aspect of the skill."
+        )
+    raise ValueError("The generated technical question repeats a previous question.")
 
 
 if __name__ == "__main__":
