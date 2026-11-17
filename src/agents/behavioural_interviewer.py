@@ -182,6 +182,8 @@ def generate_behavioural_question(
 
     # Only the target is sent, so the LLM cannot blend in other competencies (Round 4, B1).
     focus_data = json.dumps({"target_competency": target}, indent=2)
+        # Follow-ups see only this competency's turns, so other questions cannot bleed in (UI6).
+    shown = [t for t in turns if t.question.target_skill_or_gap == target] if is_followup else turns
 
     history_data = json.dumps(
         [
@@ -191,7 +193,7 @@ def generate_behavioural_question(
                 "student_answer": t.student_answer,
                 "is_followup": t.question.is_followup,
             }
-            for t in turns
+            for t in shown
         ],
         ensure_ascii=False,
         indent=2,

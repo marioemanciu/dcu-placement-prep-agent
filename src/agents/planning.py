@@ -54,7 +54,9 @@ def run(
         candidates = job_analysis.likely_topics
 
     # 2b. Past weaknesses from long-term memory (memory stores plain strings)
-    past_weaknesses = previous_memory.get("weaknesses", []) if previous_memory else []
+    past_weaknesses = _weakness_names(
+        previous_memory.get("weaknesses", []) if previous_memory else []
+    )
 
     # 2c. Build the user prompt from three tagged data blocks
     user_prompt = "\n\n".join(
@@ -70,6 +72,21 @@ def run(
 
     # 4. Enforce the hard rules in code
     return _enforce_rules(plan, candidates, job_analysis, past_weaknesses)
+
+
+def _weakness_names(past_weaknesses) -> list[str]:
+    """Memory may hold plain names or PersistentWeakness records (dicts or models): keep the skill names."""
+    names = []
+    for item in past_weaknesses or []:
+        if isinstance(item, str):
+            name = item
+        elif isinstance(item, dict):
+            name = item.get("skill", "")
+        else:
+            name = getattr(item, "skill", "")
+        if isinstance(name, str) and name.strip():
+            names.append(name)
+    return names
 
 
 def _normalise(text: str) -> str:
@@ -106,7 +123,7 @@ def _enforce_rules(
 ) -> PlanningOutput:
     """Rules in code, not trusted to the LLM."""
     gap_names = {_normalise(c): c for c in candidates if c.strip()}
-    past_keys = {_normalise(w) for w in (past_weaknesses or [])}
+    past_keys = {_normalise(w) for w in _weakness_names(past_weaknesses)}
 
     # Rule 1: priority gaps must be real confirmed gaps (drops invented or H1-rejected ones)
     priority = _unique(plan.priority_gaps, gap_names, set(), MAX_PRIORITY)

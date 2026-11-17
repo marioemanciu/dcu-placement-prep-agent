@@ -11,6 +11,7 @@ from src.schemas import (
     JobAnalysisOutput,
     PlanningOutput,
     SkillEvidence,
+    ScoreOutput,
 )
 
 # A small vocabulary of skills the stub looks for in the job description.
@@ -105,3 +106,22 @@ def stub_technical_question(technical_focus, job_analysis=None, interview_histor
 def stub_behavioural_question(behavioural_focus, job_analysis=None, interview_history=None):
     return _stub_question(behavioural_focus, interview_history, "behavioural",
                           "Tell me about a time you showed {topic}.")
+
+def stub_score_interview(history, job_analysis=None):
+    """STUB Scoring Agent: longer answers score higher. Offline UI work and demo backup only."""
+    scored = []
+    for turn in history:
+        answer = turn.student_answer.strip()
+        score = None
+        if answer.lower() != "skip":
+            score = ScoreOutput(
+                score=min(5, 1 + len(answer.split()) // 15),
+                rubric_criterion=(
+                    "Technical accuracy" if turn.question.round_type == "technical"
+                    else "Structure (STAR)"
+                ),
+                evidence_quote=" ".join(answer.split()[:12]),
+                actionable_feedback="Stub feedback: add a concrete example and its outcome.",
+            )
+        scored.append(turn.model_copy(update={"score": score}))
+    return scored
