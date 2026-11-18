@@ -39,7 +39,7 @@ rubric criterion, evidence quotes, injection guards). Every agent's output is va
 ### 1. Install Ollama and the model
 Install Ollama from https://ollama.com, start it, then:
 ```bash
-ollama pull llama3.1:8b
+ollama pull llama3.2:3b
 ```
 
 ### 2. Create a virtual environment and install dependencies (Python 3.10+)
