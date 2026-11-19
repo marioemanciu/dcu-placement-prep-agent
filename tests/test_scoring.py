@@ -122,6 +122,20 @@ class TestScoreAnswer(unittest.TestCase):
 
         self.assertEqual(result.score, 2)
 
+    def test_very_short_answer_scores_1_without_llm(self):
+        with patch.object(scoring, "generate_structured") as llm:
+            result = scoring.score_answer(turn("Hello"))
+
+        self.assertEqual(result.score, 1)
+        self.assertEqual(result.evidence_quote, "Hello")
+        llm.assert_not_called()
+
+    def test_llm_failure_leaves_answer_unscored(self):
+        with patch.object(scoring, "generate_structured", side_effect=ValueError("blank quote")):
+            result = scoring.score_answer(turn(LONG_TECH))
+
+        self.assertIsNone(result)
+
     def test_answer_is_wrapped_as_data(self):
         with patch.object(
             scoring, "generate_structured", return_value=llm_reply()
