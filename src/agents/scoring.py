@@ -6,8 +6,9 @@ Date          : 17/11/2026
 The LLM judges the answer; code decides and enforces everything it can:
 - the rubric criterion (technical -> Technical accuracy, behavioural -> Structure (STAR)),
 - that the evidence quote really appears in the student's answer,
-- skipped answers are not scored, "I don't know" and injection attempts score 1 without
-  the LLM, and very short answers cannot score above 2.
+- skipped answers are not scored, "I don't know", injection attempts and answers under three
+  words score 1 without the LLM, very short answers cannot score above 2, and an answer the
+  model fails to score is left unscored instead of stopping the whole interview.
 """
 
 import json
@@ -30,6 +31,7 @@ CRITERION_FOR_ROUND = {
 }
 SHORT_ANSWER_WORDS = 10  # answers shorter than this cannot score above SHORT_ANSWER_MAX
 SHORT_ANSWER_MAX = 2
+VERY_SHORT_WORDS = 3  # answers shorter than this score 1 without the LLM (nothing to quote)
 MAX_QUOTE_WORDS = 25
 # STAR answers that only say "we" are missing the candidate's own Action (Round 1, S4).
 NO_PERSONAL_ACTION_MAX = 3
@@ -97,6 +99,12 @@ def score_answer(
             answer,
             "Have a go even when unsure: explain what you do know and how you would find out the rest.",
         )
+    
+    if len(answer.split()) < VERY_SHORT_WORDS:
+        return _fixed_score(
+            criterion, answer,
+            "Give a fuller answer: explain your reasoning or a real example in a few sentences.",
+        )
 
     score_1, score_5 = _rubric_anchors(criterion)
     level = job_analysis.experience_level if job_analysis else "Intern"
@@ -112,7 +120,10 @@ def score_answer(
     )
 
     for _attempt in range(2):
-        generated = generate_structured(prompt, SCORING_PROMPT, ScoreOutput)
+        try:
+            generated = generate_structured(prompt, SCORING_PROMPT, ScoreOutput)
+        except ValueError:
+            return None  # the model failed twice: leave this answer unscored, keep the rest
         if _quote_in_answer(generated.evidence_quote, answer):
             quote = _shorten(generated.evidence_quote.strip())
             break
