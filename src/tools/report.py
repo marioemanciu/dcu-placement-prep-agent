@@ -102,14 +102,14 @@ def build_report(
     document.add_heading("2. Your strengths", level=1)
     _bullets(
         document,
-        [f"{s.skill}: {s.evidence_cv}" for s in strengths],
+        [f"{s.skill}" for s in strengths],
         "No clear strengths found.",
     )
 
     document.add_heading("3. Gaps you practised", level=1)
     _bullets(
         document,
-        [f"{g.skill}: {g.requirement_jd}" for g in confirmed_gaps],
+        [f"{g.skill}" for g in confirmed_gaps],
         "No gaps confirmed.",
     )
 
